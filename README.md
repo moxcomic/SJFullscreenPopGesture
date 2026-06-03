@@ -1,23 +1,28 @@
 # SJFullscreenPopGesture
 
-`UINavigationController` 全屏 / 边缘返回手势库，支持 UIKit 与 WebKit，基于 method swizzling 实现。
+[![Swift](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
+[![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen.svg)](https://swift.org/package-manager/)
+[![Platform](https://img.shields.io/badge/iOS-15.0%2B-blue.svg)](https://developer.apple.com/ios/)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](./LICENSE)
 
-让你在任意 `UINavigationController` 中通过「屏幕左边缘」或「全屏拖动」触发返回（pop），并提供逐 VC 的精细化控制（禁用手势、盲区、拖动回调、WebView 优先返回等）。
+`UINavigationController` 的全屏 / 边缘返回手势库，让你在任意导航控制器中通过「屏幕左边缘」或「全屏拖动」触发返回（pop），并提供逐 VC 的精细化控制（禁用手势、盲区、拖动回调、WebView 优先返回等）。
 
-> 本仓库是 [changsanjiang/SJFullscreenPopGesture](https://github.com/changsanjiang/SJFullscreenPopGesture) 的 fork。
+**本库现已采用 Swift 6 全面重写**：源码全部为原生 Swift，以 Swift 6 语言模式（严格并发）编译，并通过 Swift Package Manager 分发。底层仍借助 Objective-C runtime 对 `UINavigationController.pushViewController(_:animated:)` 进行 method swizzling，核心交互行为与原 Objective-C 版严格等价。
+
+> 本仓库是 [changsanjiang/SJFullscreenPopGesture](https://github.com/changsanjiang/SJFullscreenPopGesture) 的 fork。原版为 Objective-C + CocoaPods，本 fork 已迁移到 Swift 6 + SPM。
 
 ---
 
-## 已迁移到 Swift 6 + SPM
+## 功能特性
 
-原版是 **Objective-C + CocoaPods**，本 fork 已**全面用 Swift 原生重写**，并改为通过 **Swift Package Manager** 分发：
-
-- 源码全部为 Swift（`Sources/SJFullscreenPopGesture/`），以 Swift 6 语言模式（严格并发）编译。
-- 不再提供 CocoaPods 的 `SJFullscreenPopGesture/ObjC` 与 `SJFullscreenPopGesture/Swift` 两个 subspec，统一为单一 SPM 产物。
-- swizzling 经 Objective-C runtime 保留（交换 `UINavigationController.pushViewController(_:animated:)` 的实现），核心交互行为与原版严格等价。
-- 公开类型与属性均带 `@objc`，选择器、枚举原始值与原 ObjC 版逐字节对齐，便于尚未迁移的 ObjC 消费方继续调用。
-
-> **重要破坏性变更：不再自动安装。** 原 ObjC 版通过 `+load` 在类加载期自动完成 swizzling；Swift 禁止 `+load`，纯 SPM target 也没有可靠的启动期自动执行点，因此**必须在 App 启动时显式调用一次 `SJFullscreenPopGesture.install()`**。详见下文「迁移注意」。
+- **两种触发方式**：仅左边缘（`.edgeLeft`，默认）或全屏任意位置拖动（`.full`）。
+- **两种过渡动画**：前一个 VC 平移（`.shifting`，默认）或平移叠加遮罩淡出（`.maskAndShifting`）。
+- **逐页面精细控制**：以扩展属性在单个 `UIViewController` 上禁用手势、设置盲区、注册拖动生命周期回调。
+- **手势盲区**：支持按矩形区域（`sj_blindArea`）或按视图（`sj_blindAreaViews`）屏蔽手势，避免与 Slider 等控件冲突。
+- **WKWebView 兼容**：将 WebView 设为优先返回对象，`canGoBack` 为真时让位于 WebView 自身的前进 / 后退手势。
+- **可读手势状态**：在导航控制器上读取当前全屏手势的状态。
+- **Swift 6 严格并发**：全局配置以锁保护，可在任意线程安全读写；无数据竞争。
+- **全 `@objc` 暴露**：公开类型、选择器与枚举原始值与原 ObjC 版逐字节对齐，便于尚未迁移的 ObjC 代码继续调用。
 
 ---
 
@@ -31,6 +36,8 @@
 
 ## 安装（Swift Package Manager）
 
+仅支持 Swift Package Manager。
+
 ### 方式一：Xcode
 
 `File > Add Package Dependencies...`，输入仓库地址：
@@ -39,7 +46,7 @@
 https://github.com/moxcomic/SJFullscreenPopGesture.git
 ```
 
-分支选择 `main`。
+分支选择 `main`，然后将 `SJFullscreenPopGesture` 添加到目标。
 
 ### 方式二：Package.swift
 
@@ -68,7 +75,9 @@ dependencies: [
 
 ### 1. 启动时安装（必需，且仅需一次）
 
-在 App 启动尽早处调用 `install()`。它是**幂等**的，且必须在任何 `pushViewController` 之前调用，否则该次 push 不会为前一个 VC 建立快照，手势对其失效。
+> **重要：不再自动安装。** 原 ObjC 版通过 `+load` 在类加载期自动完成 swizzling；Swift 禁止 `+load`，纯 SPM target 也没有可靠的启动期自动执行点，因此**必须在 App 启动时显式调用一次 `SJFullscreenPopGesture.install()`**。
+
+`install()` 是**幂等**的，且必须在任何 `pushViewController` 之前调用，否则该次 push 不会为前一个 VC 建立快照，手势对其失效。
 
 UIKit `AppDelegate`：
 
@@ -159,7 +168,7 @@ final class DetailViewController: UIViewController {
 
 ### 4. 兼容 WKWebView 返回
 
-将页面内的 `WKWebView` 设为「优先返回」对象：当其 `canGoBack` 为 `true` 时，全屏手势会让位给 WebView 自身的前进/后退手势（setter 同时会把该 WebView 的 `allowsBackForwardNavigationGestures` 置为 `true`）。
+将页面内的 `WKWebView` 设为「优先返回」对象：当其 `canGoBack` 为 `true` 时，全屏手势会让位给 WebView 自身的前进 / 后退手势（setter 同时会把该 WebView 的 `allowsBackForwardNavigationGestures` 置为 `true`）。
 
 ```swift
 sj_considerWebView = webView
@@ -227,6 +236,10 @@ enum SJPreViewDisplayMode: UInt { case snapshot = 0, origin = 1 }
 4. **线程契约保持。** 全局配置（`gestureType` / `transitionMode` / `maxOffsetToTriggerPop`）与各 `sj_` 配置属性仍可在任意线程读写；`sj_fullscreenGestureState` 与内部手势创建为主线程相关，请在主线程访问。
 
 ---
+
+## 致谢
+
+本库的设计与核心交互行为完全来自原作者 **畅三江（changsanjiang）** 的 [SJFullscreenPopGesture](https://github.com/changsanjiang/SJFullscreenPopGesture)。本 fork 仅在其基础上完成 Swift 6 重写与 SPM 化，特此致谢。
 
 ## License
 
